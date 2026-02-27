@@ -1,23 +1,30 @@
 import "./styles.css";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import createGlobe from "cobe";
 import usePartySocket from "partysocket/react";
 
-// The type of messages we'll be receiving from the server
-import type { OutgoingMessage } from "../shared";
 import type { LegacyRef } from "react";
+import type { OutgoingMessage } from "../shared";
+
+type ShieldZone = {
+  id: string;
+  name: string;
+  status: "Fortified" | "Standby" | "Responding";
+  responseTime: string;
+};
+
+const SHIELD_ZONES: ShieldZone[] = [
+  { id: "na", name: "North America Vault", status: "Fortified", responseTime: "12s" },
+  { id: "eu", name: "Europe Continuity Ring", status: "Fortified", responseTime: "16s" },
+  { id: "apac", name: "APAC Recovery Mesh", status: "Standby", responseTime: "22s" },
+  { id: "latam", name: "LATAM Rapid Fallback", status: "Responding", responseTime: "29s" },
+];
 
 function App() {
-  // A reference to the canvas element where we'll render the globe
   const canvasRef = useRef<HTMLCanvasElement>();
-  // The number of markers we're currently displaying
   const [counter, setCounter] = useState(0);
-  // A map of marker IDs to their positions
-  // Note that we use a ref because the globe's `onRender` callback
-  // is called on every animation frame, and we don't want to re-render
-  // the component on every frame.
   const positions = useRef<
     Map<
       string,
@@ -27,59 +34,47 @@ function App() {
       }
     >
   >(new Map());
-  // Connect to the PartyServer server
+
   const socket = usePartySocket({
     room: "default",
     party: "globe",
     onMessage(evt) {
       const message = JSON.parse(evt.data as string) as OutgoingMessage;
       if (message.type === "add-marker") {
-        // Add the marker to our map
         positions.current.set(message.position.id, {
           location: [message.position.lat, message.position.lng],
-          size: message.position.id === socket.id ? 0.1 : 0.05,
+          size: message.position.id === socket.id ? 0.11 : 0.06,
         });
-        // Update the counter
         setCounter((c) => c + 1);
       } else {
-        // Remove the marker from our map
         positions.current.delete(message.id);
-        // Update the counter
         setCounter((c) => c - 1);
       }
     },
   });
 
   useEffect(() => {
-    // The angle of rotation of the globe
-    // We'll update this on every frame to make the globe spin
     let phi = 0;
 
     const globe = createGlobe(canvasRef.current as HTMLCanvasElement, {
       devicePixelRatio: 2,
-      width: 400 * 2,
-      height: 400 * 2,
+      width: 480 * 2,
+      height: 480 * 2,
       phi: 0,
-      theta: 0,
+      theta: 0.3,
       dark: 1,
-      diffuse: 0.8,
-      mapSamples: 16000,
-      mapBrightness: 6,
-      baseColor: [0.3, 0.3, 0.3],
-      markerColor: [0.8, 0.1, 0.1],
-      glowColor: [0.2, 0.2, 0.2],
+      diffuse: 1,
+      mapSamples: 22000,
+      mapBrightness: 5,
+      baseColor: [0.07, 0.11, 0.2],
+      markerColor: [0.31, 0.83, 0.96],
+      glowColor: [0.16, 0.45, 0.6],
       markers: [],
-      opacity: 0.7,
+      opacity: 0.95,
       onRender: (state) => {
-        // Called on every animation frame.
-        // `state` will be an empty object, return updated params.
-
-        // Get the current positions from our map
         state.markers = [...positions.current.values()];
-
-        // Rotate the globe
         state.phi = phi;
-        phi += 0.01;
+        phi += 0.0035;
       },
     });
 
@@ -88,32 +83,63 @@ function App() {
     };
   }, []);
 
+  const safetyScore = useMemo(() => {
+    if (counter === 0) {
+      return "98.9";
+    }
+
+    return Math.max(90, 99 - counter * 0.2).toFixed(1);
+  }, [counter]);
+
   return (
-    <div className="App">
-      <h1>Where's everyone at?</h1>
-      {counter !== 0 ? (
-        <p>
-          <b>{counter}</b> {counter === 1 ? "person" : "people"} connected.
+    <div className="app-shell">
+      <header className="hero">
+        <p className="eyebrow">Cloud Disaster Shield</p>
+        <h1>Safe Haven Command Center</h1>
+        <p className="subtitle">
+          A resilient sanctuary for your workloads with live global continuity visibility.
         </p>
-      ) : (
-        <p>&nbsp;</p>
-      )}
+      </header>
 
-      {/* The canvas where we'll render the globe */}
-      <canvas
-        ref={canvasRef as LegacyRef<HTMLCanvasElement>}
-        style={{ width: 400, height: 400, maxWidth: "100%", aspectRatio: 1 }}
-      />
+      <main className="layout">
+        <section className="card globe-card">
+          <div className="card-header">
+            <h2>Global Shield Presence</h2>
+            <span className="pill">{counter} guardians online</span>
+          </div>
+          <canvas
+            ref={canvasRef as LegacyRef<HTMLCanvasElement>}
+            style={{ width: 480, height: 480, maxWidth: "100%", aspectRatio: 1 }}
+          />
+          <p className="footnote">Live nodes indicate active continuity guardians and disaster response watchers.</p>
+        </section>
 
-      {/* Let's give some credit */}
-      <p>
-        Powered by <a href="https://cobe.vercel.app/">🌏 Cobe</a>,{" "}
-        <a href="https://www.npmjs.com/package/phenomenon">Phenomenon</a> and{" "}
-        <a href="https://npmjs.com/package/partyserver/">🎈 PartyServer</a>
-      </p>
+        <section className="card status-card">
+          <div className="metric">
+            <p>Haven Safety Score</p>
+            <h3>{safetyScore}%</h3>
+          </div>
+          <div className="metric">
+            <p>Incident Automation</p>
+            <h3>Auto-failover armed</h3>
+          </div>
+
+          <h2>Disaster Shield Zones</h2>
+          <ul>
+            {SHIELD_ZONES.map((zone) => (
+              <li key={zone.id}>
+                <div>
+                  <p className="zone-name">{zone.name}</p>
+                  <p className="zone-meta">Recovery SLA: {zone.responseTime}</p>
+                </div>
+                <span className={`badge ${zone.status.toLowerCase()}`}>{zone.status}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </main>
     </div>
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 createRoot(document.getElementById("root")!).render(<App />);
